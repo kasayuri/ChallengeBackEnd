@@ -3,8 +3,11 @@ using System.Collections.Generic;
 using System.Configuration;
 using System.Data.SqlClient;
 using System.Linq;
+using System.Net;
+using System.Net.Http;
 using System.Web;
 using System.Web.Http;
+using System.Web.Http.Description;
 using AluraChallengeKarina.Models;
 using Newtonsoft.Json;
 
@@ -37,7 +40,7 @@ namespace AluraChallengeKarina.Controllers
                     video.Titulo = sdr.IsDBNull(sdr.GetOrdinal("titulo")) ? "" : sdr.GetString(sdr.GetOrdinal("titulo"));
                     video.Descricao = sdr.IsDBNull(sdr.GetOrdinal("descricao")) ? "" : sdr.GetString(sdr.GetOrdinal("descricao"));
                     video.Url = sdr.IsDBNull(sdr.GetOrdinal("url")) ? "" : sdr.GetString(sdr.GetOrdinal("url"));
-                    
+
                     videos.Add(video);
                 }
 
@@ -68,9 +71,36 @@ namespace AluraChallengeKarina.Controllers
 
             return video;
         }
-        
-        public void Post([FromBody] string value)
+
+        [ResponseType(typeof(Video))]
+        public HttpResponseMessage Post(HttpRequestMessage request, [FromBody] Video video)
         {
+            if (string.IsNullOrEmpty(video.Descricao) || string.IsNullOrEmpty(video.Titulo) || string.IsNullOrEmpty(video.Url))
+            {
+                return new HttpResponseMessage(HttpStatusCode.BadRequest);
+            }
+
+            try
+            {
+                using (ConnectionString)
+                {
+                    ConnectionString.Open();
+                    using (SqlCommand cmd = new SqlCommand("INSERT INTO VIDEO(titulo,descricao,url) output INSERTED.ID " +
+                        "VALUES( @titulo, @descricao, @url)", ConnectionString))
+                    {
+                        cmd.Parameters.AddWithValue("@titulo", video.Titulo);
+                        cmd.Parameters.AddWithValue("@descricao", video.Descricao);
+                        cmd.Parameters.AddWithValue("@url", video.Url);
+
+                        video.Id = (int)cmd.ExecuteScalar();
+                    }
+                }
+            } catch (Exception)
+            {
+                return request.CreateResponse(HttpStatusCode.InternalServerError);
+            }
+
+            return request.CreateResponse(HttpStatusCode.OK, video);
         }
 
         public void Put(int id, [FromBody] string value)
